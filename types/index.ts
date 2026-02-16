@@ -1,4 +1,4 @@
-export type OutputColor = 'green' | 'accent' | 'bright' | 'dim' | 'default';
+export type OutputColor = 'green' | 'accent' | 'bright' | 'dim' | 'warm' | 'default';
 
 export interface OutputLine {
   id: string;

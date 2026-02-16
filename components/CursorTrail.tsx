@@ -4,6 +4,13 @@ import { useEffect, useRef } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { TRAIL_COUNT, MOUSE_IDLE_TIMEOUT } from '@/lib/constants';
 
+// Expose isMoving globally so BlueprintCanvas can respond to mouse presence
+declare global {
+  interface Window {
+    isMouseMoving?: boolean;
+  }
+}
+
 interface TrailDot {
   el: HTMLDivElement;
   x: number;
@@ -37,12 +44,14 @@ export function CursorTrail() {
       mouseRef.current.x = e.clientX;
       mouseRef.current.y = e.clientY;
       isMovingRef.current = true;
+      window.isMouseMoving = true;
 
       if (moveTimeoutRef.current) {
         clearTimeout(moveTimeoutRef.current);
       }
       moveTimeoutRef.current = setTimeout(() => {
         isMovingRef.current = false;
+        window.isMouseMoving = false;
       }, MOUSE_IDLE_TIMEOUT);
     };
 

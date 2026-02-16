@@ -4,6 +4,13 @@ import { useEffect, useRef } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { FPS_INTERVAL } from '@/lib/constants';
 
+// Access global isMouseMoving from CursorTrail
+declare global {
+  interface Window {
+    isMouseMoving?: boolean;
+  }
+}
+
 export function BlueprintCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isMobile = useIsMobile();
@@ -45,7 +52,12 @@ export function BlueprintCanvas() {
       const cx = w / 2;
       const cy = h / 2;
       const maxR = Math.min(w, h) * 0.42;
-      const rotation = timestamp * 0.001 * (Math.PI / 180); // ~1°/sec
+      // Canvas responds to mouse presence - rotates faster when moving
+      const baseSpeed = Math.PI / 180; // 1°/sec idle
+      const activeSpeed = baseSpeed * 2.5; // 2.5°/sec when mouse moves
+      const isMoving = typeof window !== 'undefined' && window.isMouseMoving;
+      const speed = isMoving ? activeSpeed : baseSpeed;
+      const rotation = timestamp * 0.001 * speed;
 
       ctx!.clearRect(0, 0, w, h);
 
