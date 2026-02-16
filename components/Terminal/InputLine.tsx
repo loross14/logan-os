@@ -1,6 +1,14 @@
 'use client';
 
-import { useState, type RefObject, type KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, type RefObject, type KeyboardEvent } from 'react';
+
+// Expose interaction timestamps for canvas to read
+declare global {
+  interface Window {
+    keystrokeTime?: number;
+    commandSentTime?: number;
+  }
+}
 
 interface InputLineProps {
   inputRef: RefObject<HTMLInputElement | null>;
@@ -18,11 +26,40 @@ export function InputLine({
   onGetCompletion,
 }: InputLineProps) {
   const [value, setValue] = useState('');
+  const [promptActive, setPromptActive] = useState(false);
+  const [inputFlash, setInputFlash] = useState(false);
+  const promptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const borderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // Keystroke pulse for printable characters
+    if (e.key.length === 1) {
+      // Trigger prompt brightening
+      setPromptActive(true);
+      if (promptTimeoutRef.current) clearTimeout(promptTimeoutRef.current);
+      promptTimeoutRef.current = setTimeout(() => setPromptActive(false), 300);
+
+      // Trigger border flash via terminal window
+      const tw = document.querySelector('.terminal-window') as HTMLElement;
+      if (tw) {
+        tw.style.borderColor = 'var(--clay)';
+        if (borderTimeoutRef.current) clearTimeout(borderTimeoutRef.current);
+        borderTimeoutRef.current = setTimeout(() => {
+          tw.style.borderColor = '';
+        }, 200);
+      }
+
+      // Signal canvas for rotation boost
+      window.keystrokeTime = Date.now();
+    }
+
     if (e.key === 'Enter') {
       const trimmed = value.trim();
       if (trimmed) {
+        // Command send animation
+        setInputFlash(true);
+        setTimeout(() => setInputFlash(false), 400);
+        window.commandSentTime = Date.now();
         onSubmit(value);
       }
       setValue('');
@@ -63,8 +100,8 @@ export function InputLine({
   };
 
   return (
-    <div className="terminal-input-line">
-      <span className="prompt-prefix">~$</span>
+    <div className={`terminal-input-line${inputFlash ? ' flash' : ''}`}>
+      <span className={`prompt-prefix${promptActive ? ' active' : ''}`}>~$</span>
       <input
         ref={inputRef}
         type="text"

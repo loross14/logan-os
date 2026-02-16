@@ -4,10 +4,12 @@ import { useEffect, useRef } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { FPS_INTERVAL } from '@/lib/constants';
 
-// Access global isMouseMoving from CursorTrail
+// Access global interaction timestamps
 declare global {
   interface Window {
     isMouseMoving?: boolean;
+    keystrokeTime?: number;
+    commandSentTime?: number;
   }
 }
 
@@ -26,6 +28,10 @@ export function BlueprintCanvas() {
     let h = 0;
     let lastFrame = 0;
     let animationId: number;
+
+    // Ring pulse state for command send effect
+    let ringPulseStart = 0;
+    let centerFlareStart = 0;
 
     const LINE_COUNT = isMobile ? 18 : 36;
     const CIRCLE_COUNT = isMobile ? 3 : 5;
@@ -52,12 +58,25 @@ export function BlueprintCanvas() {
       const cx = w / 2;
       const cy = h / 2;
       const maxR = Math.min(w, h) * 0.42;
+
       // Canvas responds to mouse presence - rotates faster when moving
       const baseSpeed = Math.PI / 180; // 1°/sec idle
       const activeSpeed = baseSpeed * 2.5; // 2.5°/sec when mouse moves
       const isMoving = typeof window !== 'undefined' && window.isMouseMoving;
-      const speed = isMoving ? activeSpeed : baseSpeed;
+
+      // Keystroke boost: adds 0.5°/sec for 200ms after each keystroke
+      const keystrokeAge = window.keystrokeTime ? timestamp - window.keystrokeTime : Infinity;
+      const keystrokeBoost = keystrokeAge < 200 ? (Math.PI / 360) * (1 - keystrokeAge / 200) : 0;
+
+      const speed = (isMoving ? activeSpeed : baseSpeed) + keystrokeBoost;
       const rotation = timestamp * 0.001 * speed;
+
+      // Check for command send pulse
+      const commandAge = window.commandSentTime ? Date.now() - window.commandSentTime : Infinity;
+      if (commandAge < 50 && ringPulseStart === 0) {
+        ringPulseStart = timestamp;
+        centerFlareStart = timestamp;
+      }
 
       ctx!.clearRect(0, 0, w, h);
 
@@ -75,13 +94,34 @@ export function BlueprintCanvas() {
         ctx!.stroke();
       }
 
-      // --- Concentric circles ---
+      // --- Concentric circles with ring pulse ---
       const breathe = Math.sin(timestamp * 0.001 * 0.8) * 0.5 + 0.5; // 0..1 over ~8s
       const circleBaseAlpha = bp ? 0.1 : 0.04;
       const circleBreathAlpha = bp ? 0.06 : 0.03;
 
+      // Ring pulse: expand 8-12px over 400ms, ease back over 800ms
+      let ringPulseOffset = 0;
+      if (ringPulseStart > 0) {
+        const pulseAge = timestamp - ringPulseStart;
+        if (pulseAge < 400) {
+          // Expand phase: ease out
+          const t = pulseAge / 400;
+          const easeOut = 1 - Math.pow(1 - t, 2);
+          ringPulseOffset = easeOut * 10; // 10px max expansion
+        } else if (pulseAge < 1200) {
+          // Contract phase: ease in
+          const t = (pulseAge - 400) / 800;
+          const easeIn = 1 - t;
+          ringPulseOffset = easeIn * 10;
+        } else {
+          // Reset pulse state
+          ringPulseStart = 0;
+        }
+      }
+
       for (let i = 1; i <= CIRCLE_COUNT; i++) {
-        const r = (maxR / CIRCLE_COUNT) * i;
+        const baseR = (maxR / CIRCLE_COUNT) * i;
+        const r = baseR + ringPulseOffset;
         const alpha = circleBaseAlpha + breathe * circleBreathAlpha;
         const circleColor = bp ? `rgba(100,160,200,${alpha})` : `rgba(50,50,50,${alpha})`;
         ctx!.strokeStyle = circleColor;
@@ -110,18 +150,32 @@ export function BlueprintCanvas() {
         ctx!.stroke();
       }
 
-      // --- Center point ---
+      // --- Center point with flare on command send ---
+      let centerFlareMultiplier = 1;
+      if (centerFlareStart > 0) {
+        const flareAge = timestamp - centerFlareStart;
+        if (flareAge < 600) {
+          // Flare to 2× brightness, fade back over 600ms
+          const t = flareAge / 600;
+          const easeOut = 1 - Math.pow(t, 2);
+          centerFlareMultiplier = 1 + easeOut; // 2× at start, 1× at end
+        } else {
+          centerFlareStart = 0;
+        }
+      }
+
       if (bp) {
         // Pulsing ring in blueprint mode
-        const ringAlpha = 0.2 + breathe * 0.15;
-        ctx!.strokeStyle = `rgba(201,169,110,${ringAlpha})`;
+        const ringAlpha = (0.2 + breathe * 0.15) * centerFlareMultiplier;
+        ctx!.strokeStyle = `rgba(201,169,110,${Math.min(ringAlpha, 1)})`;
         ctx!.lineWidth = 1;
         ctx!.beginPath();
         ctx!.arc(cx, cy, 4 + breathe * 2, 0, Math.PI * 2);
         ctx!.stroke();
       } else {
         // Tiny gold dot in dark mode
-        ctx!.fillStyle = 'rgba(201,169,110,0.15)';
+        const dotAlpha = 0.15 * centerFlareMultiplier;
+        ctx!.fillStyle = `rgba(201,169,110,${Math.min(dotAlpha, 1)})`;
         ctx!.beginPath();
         ctx!.arc(cx, cy, 2, 0, Math.PI * 2);
         ctx!.fill();
