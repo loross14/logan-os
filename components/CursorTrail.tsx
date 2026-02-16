@@ -2,13 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import {
-  TRAIL_COUNT,
-  TRAIL_SPEEDS,
-  TRAIL_OPACITIES,
-  TRAIL_SCALES,
-  MOUSE_IDLE_TIMEOUT,
-} from '@/lib/constants';
+import { TRAIL_COUNT, MOUSE_IDLE_TIMEOUT } from '@/lib/constants';
 
 interface TrailDot {
   el: HTMLDivElement;
@@ -18,7 +12,6 @@ interface TrailDot {
 
 export function CursorTrail() {
   const isMobile = useIsMobile();
-  const containerRef = useRef<HTMLDivElement>(null);
   const trailsRef = useRef<TrailDot[]>([]);
   const mouseRef = useRef({ x: 0, y: 0 });
   const isMovingRef = useRef(false);
@@ -26,28 +19,15 @@ export function CursorTrail() {
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (isMobile || !containerRef.current) return;
+    if (isMobile) return;
 
     // Create trail dots
-    const container = containerRef.current;
     const trails: TrailDot[] = [];
 
     for (let i = 0; i < TRAIL_COUNT; i++) {
       const dot = document.createElement('div');
       dot.className = 'trail-dot';
-      dot.style.cssText = `
-        position: fixed;
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: var(--accent);
-        pointer-events: none;
-        z-index: 9999;
-        opacity: 0;
-        transition: opacity 0.15s;
-        will-change: left, top, opacity;
-      `;
-      container.appendChild(dot);
+      document.body.appendChild(dot);
       trails.push({ el: dot, x: 0, y: 0 });
     }
     trailsRef.current = trails;
@@ -72,13 +52,13 @@ export function CursorTrail() {
       let prevY = mouseRef.current.y;
 
       trailsRef.current.forEach((t, i) => {
-        const speed = TRAIL_SPEEDS[i];
+        const speed = 0.15 - (i * 0.02);
         t.x += (prevX - t.x) * speed;
         t.y += (prevY - t.y) * speed;
         t.el.style.left = `${t.x}px`;
         t.el.style.top = `${t.y}px`;
-        t.el.style.opacity = isMovingRef.current ? String(TRAIL_OPACITIES[i]) : '0';
-        t.el.style.transform = `scale(${TRAIL_SCALES[i]})`;
+        t.el.style.opacity = isMovingRef.current ? String(0.3 - i * 0.06) : '0';
+        t.el.style.transform = `scale(${1 - i * 0.15})`;
         prevX = t.x;
         prevY = t.y;
       });
@@ -102,7 +82,5 @@ export function CursorTrail() {
     };
   }, [isMobile]);
 
-  if (isMobile) return null;
-
-  return <div ref={containerRef} />;
+  return null;
 }

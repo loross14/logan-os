@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logan Ross</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #1e1e1e;
+    --ghost: #2a2a2a;
+    --muted: #555555;
+    --body: #888888;
+    --text: #b0b0b0;
+    --bright: #d4d0c8;
+    --white: #eae6de;
+    --accent: #c9a96e;
+    --red: #9B2335;
+    --green: #5a9a7a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ghost) var(--bg);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--body);
+    font-family: 'IBM Plex Mono', monospace;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    cursor: default;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* === BACKGROUND CANVAS === */
+  #blueprintBg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* === CURSOR TRAIL === */
+  .trail-dot {
+    position: fixed;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.15s;
+    will-change: left, top, opacity;
+  }
+
+  /* === PAGE (replaces terminal-overlay) === */
+  .page {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* === TERMINAL === */
+  .terminal-window {
+    width: 560px;
+    max-width: 90vw;
+    max-height: 85vh;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 80px rgba(0,0,0,0.5);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.4s ease, max-width 0.4s ease, max-height 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease, border-radius 0.4s ease;
+    position: relative;
+  }
+
+  .terminal-titlebar {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .terminal-titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .terminal-titlebar .tdot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: opacity 0.3s;
+  }
+  .terminal-titlebar .tdot:hover { opacity: 0.7; }
+  .terminal-titlebar .tdot.r { background: var(--red); }
+  .terminal-titlebar .tdot.y { background: var(--accent); }
+  .terminal-titlebar .tdot.g { background: var(--green); }
+
+  .terminal-body {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+    line-height: 1.8;
+    color: var(--body);
+    min-height: 200px;
+  }
+  .terminal-body .out { color: var(--muted); margin-bottom: 4px; }
+  .terminal-body .out.green { color: var(--green); }
+  .terminal-body .out.accent { color: var(--accent); }
+  .terminal-body .out.bright { color: var(--bright); }
+  .terminal-body .out.dim { color: var(--ghost); font-size: 12px; }
+
+  .terminal-input-line {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 8px 16px 16px;
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .terminal-input-line .prompt-prefix { color: var(--green); margin-right: 8px; }
+  .terminal-input-line input {
+    background: none;
+    border: none;
+    outline: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    flex: 1;
+    caret-color: var(--accent);
+  }
+  .terminal-input-line input::placeholder {
+    color: var(--ghost);
+    font-style: italic;
+  }
+
+  /* === BLUEPRINT CARTOUCHE === */
+  .blueprint-cartouche {
+    display: none;
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    color: var(--ghost);
+    text-transform: uppercase;
+    pointer-events: none;
+    line-height: 1.6;
+    text-align: right;
+  }
+  body.blueprint-mode .blueprint-cartouche {
+    display: block;
+  }
+
+  /* === EXPANDED STATE === */
+  body.terminal-expanded .terminal-window {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-color: transparent;
+    box-shadow: none;
+  }
+  body.terminal-expanded .page {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  body.terminal-expanded .terminal-window {
+    flex: 1;
+  }
+
+  /* === FAREWELL STATE === */
+  body.farewell .terminal-window {
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+
+  /* === ACCENT MODE === */
+  body.accent-mode .terminal-input-line .prompt-prefix { color: var(--accent); }
+  body.accent-mode .terminal-titlebar .tdot.g { background: var(--accent); }
+  body.accent-mode ::selection { background: var(--red); }
+
+  /* === BLUEPRINT MODE === */
+  body.blueprint-mode {
+    --bg: #0b1a2e;
+    --surface: #0f2240;
+    --border: #1a3050;
+    --ghost: #2a4060;
+    --muted: #4a7090;
+    --body: #6a8faa;
+    --text: #8bb0cc;
+    --bright: #a8cce0;
+    --white: #d4e8f4;
+    --green: #6ab0a0;
+    --red: #7a4455;
+  }
+  body.blueprint-mode .terminal-titlebar {
+    border-bottom-style: dashed;
+  }
+  body.blueprint-mode .trail-dot {
+    background: transparent;
+    border: 1px solid var(--text);
+    width: 6px;
+    height: 6px;
+  }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 640px) {
+    .terminal-window {
+      width: 100vw;
+      max-width: 100vw;
+      max-height: 100vh;
+      border: none;
+      box-shadow: none;
+    }
+    .page {
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    .terminal-window {
+      flex: 1;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Background canvas -->
+<canvas id="blueprintBg"></canvas>
+
+<!-- Page -->
+<div class="page">
+  <div class="terminal-window">
+    <div class="terminal-titlebar">
+      <div class="terminal-titlebar-left">
+        <span class="tdot r" id="expandToggle" title="Expand/Shrink"></span>
+        <span class="tdot y"></span>
+        <span class="tdot g"></span>
+        <span style="margin-left:8px;">logan@portfolio</span>
+      </div>
+    </div>
+    <div class="terminal-body" id="terminalBody"></div>
+    <div class="terminal-input-line">
+      <span class="prompt-prefix">~$</span>
+      <input type="text" id="terminalInput" autocomplete="off" spellcheck="false" placeholder="try typing something...">
+    </div>
+    <div class="blueprint-cartouche">LOGAN ROSS / SHEET NO. 1 / 2026</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CURSOR TRAIL (desktop only)
+// ============================================================
+const isMobile = window.matchMedia('(hover: none)').matches;
+if (!isMobile) {
+  const TRAIL_COUNT = 5;
+  const trails = [];
+  for (let i = 0; i < TRAIL_COUNT; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'trail-dot';
+    document.body.appendChild(dot);
+    trails.push({ el: dot, x: 0, y: 0 });
+  }
+  let mouseX = 0, mouseY = 0, isMoving = false, moveTimeout;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    isMoving = true;
+    clearTimeout(moveTimeout);
+    moveTimeout = setTimeout(() => { isMoving = false; }, 100);
+  });
+  function animateTrails() {
+    let prevX = mouseX, prevY = mouseY;
+    trails.forEach((t, i) => {
+      const speed = 0.15 - (i * 0.02);
+      t.x += (prevX - t.x) * speed;
+      t.y += (prevY - t.y) * speed;
+      t.el.style.left = t.x + 'px';
+      t.el.style.top = t.y + 'px';
+      t.el.style.opacity = isMoving ? (0.3 - i * 0.06) : '0';
+      t.el.style.transform = `scale(${1 - i * 0.15})`;
+      prevX = t.x; prevY = t.y;
+    });
+    requestAnimationFrame(animateTrails);
+  }
+  animateTrails();
+}
+
+// ============================================================
+// TERMINAL CORE
+// ============================================================
+const terminalInput = document.getElementById('terminalInput');
+const terminalBody = document.getElementById('terminalBody');
+
+// --- Command history ---
+const history = [];
+let historyIndex = -1;
+
+// --- Typing animation queue ---
+let typeQueue = [];
+let isTyping = false;
+const TYPE_SPEED = 14;
+
+function typeNextLine() {
+  if (typeQueue.length === 0) { isTyping = false; return; }
+  isTyping = true;
+  const { text, cls, resolve } = typeQueue.shift();
+  const div = document.createElement('div');
+  div.className = 'out' + (cls ? ' ' + cls : '');
+  div.textContent = '';
+  terminalBody.appendChild(div);
+  let i = 0;
+  function tick() {
+    if (i < text.length) {
+      div.textContent += text[i];
+      i++;
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+      setTimeout(tick, TYPE_SPEED);
+    } else {
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+      if (resolve) resolve();
+      typeNextLine();
+    }
+  }
+  tick();
+}
+
+function addLine(text, cls = '') {
+  return new Promise((resolve) => {
+    typeQueue.push({ text, cls, resolve });
+    if (!isTyping) typeNextLine();
+  });
+}
+
+function addLineInstant(text, cls = '') {
+  const div = document.createElement('div');
+  div.className = 'out' + (cls ? ' ' + cls : '');
+  div.textContent = text;
+  terminalBody.appendChild(div);
+  terminalBody.scrollTop = terminalBody.scrollHeight;
+}
+
+// ============================================================
+// WELCOME (plays on load)
+// ============================================================
+function showWelcome() {
+  addLine('');
+  addLine('Welcome.', 'green');
+  addLine('Type something. See what happens.', '');
+  addLine('');
+  addLine('Not sure where to start? Try "look around".', 'dim');
+  addLine('');
+}
+
+// Auto-focus and welcome on load
+setTimeout(() => {
+  terminalInput.focus();
+  showWelcome();
+}, 100);
+
+// Re-focus on click anywhere
+document.addEventListener('click', () => {
+  setTimeout(() => terminalInput.focus(), 10);
+});
+
+// ============================================================
+// EXPAND / SHRINK
+// ============================================================
+function toggleExpand() {
+  document.body.classList.toggle('terminal-expanded');
+}
+
+document.getElementById('expandToggle').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleExpand();
+});
+
+// ============================================================
+// COMMAND DICTIONARY
+// ============================================================
+const COMMANDS = [
+  {
+    name: 'look around',
+    aliases: ['help', 'commands', 'menu', 'options', 'what', 'hi', 'hello', 'hey', '?', 'start'],
+    desc: 'see what you can do here',
+    run: () => {
+      addLine('');
+      addLine('Here\'s what you can ask me:', 'green');
+      addLine('');
+      addLine('  about         who I am');
+      addLine('  work          what I\'ve built');
+      addLine('  tools         what I build with');
+      addLine('  say hello     get in touch');
+      addLine('  change mood   shift the colors');
+      addLine('  expand        fill the room');
+      addLine('  shrink        back to the window');
+      addLine('  start over    clear the screen');
+      addLine('  leave         say goodbye');
+      addLine('');
+      addLine('  secret        ...you didn\'t hear this from me', 'accent');
+      addLine('');
+      addLine('Or just type whatever feels right.', 'dim');
+    }
+  },
+  {
+    name: 'about',
+    aliases: ['who', 'who are you', 'bio', 'info', 'me', 'about me', 'tell me about yourself'],
+    desc: 'who I am',
+    run: () => {
+      addLine('');
+      addLine('Logan Ross.');
+      addLine('Builder, designer, engineer.');
+      addLine('Based in Ann Arbor, Michigan.');
+      addLine('');
+      addLine('I care about spatial interfaces, generative');
+      addLine('systems, and making things that feel handmade');
+      addLine('even when they\'re made of code.');
+      addLine('');
+    }
+  },
+  {
+    name: 'work',
+    aliases: ['projects', 'portfolio', 'what have you built', 'show me', 'show work', 'show me your work', 'what do you do'],
+    desc: 'what I\'ve built',
+    run: () => {
+      addLine('');
+      addLine('Selected work:', 'green');
+      addLine('');
+      addLine('  01  Autonomous Trading Dashboard', 'bright');
+      addLine('      Real-time portfolio visualization.');
+      addLine('      Vanilla JS, every byte earned its place.');
+      addLine('');
+      addLine('  02  Generative Identity System', 'bright');
+      addLine('      A living brand that morphs with weather,');
+      addLine('      time, and attention. Never the same twice.');
+      addLine('');
+      addLine('  03  Spatial Audio Web Engine', 'bright');
+      addLine('      Sound exists in 3D space relative to your');
+      addLine('      scroll. Move through the story, it surrounds you.');
+      addLine('');
+    }
+  },
+  {
+    name: 'tools',
+    aliases: ['stack', 'tech', 'skills', 'languages', 'what do you use', 'technologies'],
+    desc: 'what I build with',
+    run: () => {
+      addLine('');
+      addLine('Things I reach for:', 'green');
+      addLine('');
+      addLine('  Languages    Rust, TypeScript, Python');
+      addLine('  Frontend     Vanilla JS, React, Canvas');
+      addLine('  Design       Figma, P5.js, Blender');
+      addLine('  Sound        Web Audio API, spatial audio');
+      addLine('  Mail Room    WebSockets, WebGL, WASM');
+      addLine('');
+    }
+  },
+  {
+    name: 'say hello',
+    aliases: ['contact', 'email', 'reach', 'hire', 'get in touch', 'reach out', 'mail', 'connect'],
+    desc: 'get in touch',
+    run: () => {
+      addLine('');
+      addLine('I\'d love to hear from you.', 'green');
+      addLine('');
+      addLine('  Email    loross@umich.edu', 'accent');
+      addLine('  GitHub   github.com/loganross');
+      addLine('');
+      addLine('The door is always open.', 'dim');
+      addLine('');
+    }
+  },
+  {
+    name: 'change mood',
+    aliases: ['theme', 'color', 'colors', 'mood', 'change colors', 'change the lights', 'lights', 'vibe', 'warm'],
+    desc: 'shift the colors',
+    run: () => {
+      document.body.classList.toggle('accent-mode');
+      const on = document.body.classList.contains('accent-mode');
+      addLine('');
+      addLine(on ? 'Warmed things up.' : 'Back to the cool tones.', 'accent');
+      addLine(on ? 'Gold suits you.' : 'Green it is.', 'dim');
+      addLine('');
+    }
+  },
+  {
+    name: 'expand',
+    aliases: ['fullscreen', 'maximize', 'full', 'bigger'],
+    desc: 'fill the room',
+    run: () => {
+      if (!document.body.classList.contains('terminal-expanded')) {
+        document.body.classList.add('terminal-expanded');
+        addLine('');
+        addLine('Filled the room.', 'green');
+        addLine('');
+      } else {
+        addLine('');
+        addLine('Already there.', 'dim');
+        addLine('');
+      }
+    }
+  },
+  {
+    name: 'shrink',
+    aliases: ['window', 'minimize', 'smaller', 'float'],
+    desc: 'back to the window',
+    run: () => {
+      if (document.body.classList.contains('terminal-expanded')) {
+        document.body.classList.remove('terminal-expanded');
+        addLine('');
+        addLine('Back to the window.', 'green');
+        addLine('');
+      } else {
+        addLine('');
+        addLine('Already floating.', 'dim');
+        addLine('');
+      }
+    }
+  },
+  {
+    name: 'start over',
+    aliases: ['clear', 'reset', 'clean', 'fresh', 'new'],
+    desc: 'clear the screen',
+    run: () => {
+      terminalBody.innerHTML = '';
+      typeQueue = [];
+      isTyping = false;
+      addLine('Fresh start.', 'green');
+      addLine('');
+    }
+  },
+  {
+    name: 'leave',
+    aliases: ['exit', 'close', 'quit', 'bye', 'goodbye', 'go', 'done'],
+    desc: 'say goodbye',
+    run: () => {
+      addLine('');
+      addLine('Thanks for stopping by.', 'green');
+      addLine('');
+      setTimeout(() => {
+        document.body.classList.add('farewell');
+      }, 800);
+      // Come back on any keypress
+      setTimeout(() => {
+        const comeback = (e) => {
+          document.body.classList.remove('farewell');
+          document.removeEventListener('keydown', comeback);
+          document.removeEventListener('click', comeback);
+          terminalBody.innerHTML = '';
+          typeQueue = [];
+          isTyping = false;
+          addLine('');
+          addLine('Welcome back.', 'green');
+          addLine('');
+          setTimeout(() => terminalInput.focus(), 50);
+        };
+        document.addEventListener('keydown', comeback);
+        document.addEventListener('click', comeback);
+      }, 1600);
+    }
+  },
+  {
+    name: 'secret',
+    aliases: ['secrets', 'hidden', 'surprise', 'easter egg'],
+    desc: '???',
+    hidden: true,
+    run: () => {
+      addLine('');
+      addLine('  "Less is only more where more', 'accent');
+      addLine('   is no good."', 'accent');
+      addLine('');
+      addLine('            — Frank Lloyd Wright', 'accent');
+      addLine('');
+      addLine('You found one of three hidden things.', 'green');
+      addLine('The other two aren\'t in here.', 'dim');
+      addLine('');
+    }
+  },
+  {
+    name: 'konami',
+    aliases: ['cheat', 'cheat code'],
+    desc: 'cheat code',
+    hidden: true,
+    run: () => {
+      document.body.classList.add('accent-mode');
+      addLine('');
+      addLine('You know the code. Welcome to the inner circle.', 'green');
+      addLine('');
+    }
+  },
+  {
+    name: 'sudo rm -rf /',
+    aliases: ['sudo', 'rm -rf', 'delete everything', 'destroy'],
+    desc: '',
+    hidden: true,
+    run: () => {
+      addLine('');
+      addLine('Nope.', 'accent');
+      addLine('Frank wouldn\'t approve of demolition without a blueprint.', 'dim');
+      addLine('');
+    }
+  },
+  {
+    name: 'blueprint',
+    aliases: ['draft', 'plans', 'cyanotype', 'drawing'],
+    desc: 'toggle the blueprint',
+    hidden: true,
+    run: () => {
+      document.body.classList.toggle('blueprint-mode');
+      const on = document.body.classList.contains('blueprint-mode');
+      addLine('');
+      addLine(on ? 'Switched to blueprint. White lines on blue.' : 'Back to the dark room.', 'accent');
+      addLine('');
+    }
+  },
+  {
+    name: 'frank',
+    aliases: ['wright', 'frank lloyd wright', 'flw', 'taliesin', 'fallingwater'],
+    desc: '',
+    hidden: true,
+    run: () => {
+      addLine('');
+      addLine('  "An architect\'s most useful tools', 'accent');
+      addLine('   are an eraser at the drafting board,', 'accent');
+      addLine('   and a wrecking ball at the site."', 'accent');
+      addLine('');
+      addLine('            — Frank Lloyd Wright', 'accent');
+      addLine('');
+      addLine('You speak the language.', 'green');
+      addLine('');
+    }
+  },
+];
+
+// Build lookup: name + all aliases → command
+const cmdLookup = {};
+COMMANDS.forEach(c => {
+  cmdLookup[c.name] = c;
+  c.aliases.forEach(a => { cmdLookup[a] = c; });
+});
+
+// Tab completion pool
+const allCompletions = [];
+COMMANDS.filter(c => !c.hidden).forEach(c => {
+  allCompletions.push(c.name);
+  c.aliases.filter(a => a.length > 2).forEach(a => allCompletions.push(a));
+});
+COMMANDS.filter(c => c.hidden).forEach(c => {
+  allCompletions.push(c.name);
+});
+
+// ============================================================
+// PROCESS INPUT
+// ============================================================
+function processCommand(raw) {
+  const cmd = raw.trim().toLowerCase();
+  if (!cmd) return;
+
+  history.push(cmd);
+  historyIndex = history.length;
+
+  const match = cmdLookup[cmd];
+  if (match) {
+    match.run();
+  } else {
+    addLine('');
+    addLine('Hmm, I don\'t know that one yet.');
+    addLine('Type "look around" to see what I understand.', 'dim');
+    addLine('');
+  }
+}
+
+// ============================================================
+// INPUT HANDLING
+// ============================================================
+terminalInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const raw = terminalInput.value.trim();
+    terminalInput.value = '';
+    if (raw) {
+      addLineInstant('~$ ' + raw, 'bright');
+      processCommand(raw);
+    }
+    return;
+  }
+
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (history.length === 0) return;
+    historyIndex = Math.max(0, historyIndex - 1);
+    terminalInput.value = history[historyIndex] || '';
+    setTimeout(() => { terminalInput.selectionStart = terminalInput.selectionEnd = terminalInput.value.length; }, 0);
+    return;
+  }
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    historyIndex = Math.min(history.length, historyIndex + 1);
+    terminalInput.value = historyIndex === history.length ? '' : (history[historyIndex] || '');
+    return;
+  }
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const partial = terminalInput.value.trim().toLowerCase();
+    if (!partial) return;
+    const match = allCompletions.find(c => c.startsWith(partial) && c !== partial);
+    if (match) {
+      terminalInput.value = match;
+    }
+    return;
+  }
+});
+
+// ============================================================
+// KONAMI CODE
+// ============================================================
+const konamiSequence = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let konamiIndex = 0;
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === konamiSequence[konamiIndex]) {
+    konamiIndex++;
+    if (konamiIndex === konamiSequence.length) {
+      document.body.classList.add('accent-mode');
+      konamiIndex = 0;
+    }
+  } else {
+    konamiIndex = 0;
+  }
+});
+
+// ============================================================
+// BLUEPRINT BACKGROUND CANVAS
+// ============================================================
+(function initBlueprintCanvas() {
+  const canvas = document.getElementById('blueprintBg');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+  let lastFrame = 0;
+  const FPS_INTERVAL = 1000 / 15; // ~15fps
+
+  const LINE_COUNT = isMobile ? 18 : 36;
+  const CIRCLE_COUNT = isMobile ? 3 : 5;
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  function drawFrame(timestamp) {
+    requestAnimationFrame(drawFrame);
+
+    // Throttle
+    if (timestamp - lastFrame < FPS_INTERVAL) return;
+    lastFrame = timestamp;
+
+    const bp = document.body.classList.contains('blueprint-mode');
+    const cx = w / 2;
+    const cy = h / 2;
+    const maxR = Math.min(w, h) * 0.42;
+    const rotation = timestamp * 0.001 * (Math.PI / 180); // ~1°/sec
+
+    ctx.clearRect(0, 0, w, h);
+
+    // --- Radial lines ---
+    const lineAlpha = bp ? 0.18 : 0.06;
+    const lineColor = bp ? `rgba(100,160,200,${lineAlpha})` : `rgba(40,40,40,${lineAlpha})`;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 0.5;
+
+    for (let i = 0; i < LINE_COUNT; i++) {
+      const angle = rotation + (i * (Math.PI * 2) / LINE_COUNT);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * maxR, cy + Math.sin(angle) * maxR);
+      ctx.stroke();
+    }
+
+    // --- Concentric circles ---
+    const breathe = Math.sin(timestamp * 0.001 * 0.8) * 0.5 + 0.5; // 0..1 over ~8s
+    const circleBaseAlpha = bp ? 0.1 : 0.04;
+    const circleBreathAlpha = bp ? 0.06 : 0.03;
+
+    for (let i = 1; i <= CIRCLE_COUNT; i++) {
+      const r = (maxR / CIRCLE_COUNT) * i;
+      const alpha = circleBaseAlpha + breathe * circleBreathAlpha;
+      const circleColor = bp ? `rgba(100,160,200,${alpha})` : `rgba(50,50,50,${alpha})`;
+      ctx.strokeStyle = circleColor;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // --- Compass ticks at cardinal directions ---
+    const tickAlpha = bp ? 0.25 : 0.08;
+    const tickColor = bp ? `rgba(130,180,220,${tickAlpha})` : `rgba(60,60,60,${tickAlpha})`;
+    ctx.strokeStyle = tickColor;
+    ctx.lineWidth = 1;
+    const tickLen = 6;
+
+    for (let i = 0; i < 4; i++) {
+      const angle = rotation + (i * Math.PI / 2);
+      const outerX = cx + Math.cos(angle) * maxR;
+      const outerY = cy + Math.sin(angle) * maxR;
+      const innerX = cx + Math.cos(angle) * (maxR - tickLen);
+      const innerY = cy + Math.sin(angle) * (maxR - tickLen);
+      ctx.beginPath();
+      ctx.moveTo(innerX, innerY);
+      ctx.lineTo(outerX, outerY);
+      ctx.stroke();
+    }
+
+    // --- Center point ---
+    if (bp) {
+      // Pulsing ring in blueprint mode
+      const ringAlpha = 0.2 + breathe * 0.15;
+      ctx.strokeStyle = `rgba(201,169,110,${ringAlpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4 + breathe * 2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Tiny gold dot in dark mode
+      ctx.fillStyle = 'rgba(201,169,110,0.15)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- Blueprint dimension text ---
+    if (bp) {
+      ctx.save();
+      ctx.font = '8px "IBM Plex Mono", monospace';
+      ctx.fillStyle = `rgba(100,160,200,0.15)`;
+      const dimAngle = rotation + Math.PI * 0.15;
+      const dimDist = maxR * 0.6;
+      const tx = cx + Math.cos(dimAngle) * dimDist;
+      const ty = cy + Math.sin(dimAngle) * dimDist;
+      ctx.translate(tx, ty);
+      ctx.rotate(dimAngle);
+      ctx.fillText("24'-0\"", 0, 0);
+      ctx.restore();
+    }
+  }
+
+  requestAnimationFrame(drawFrame);
+})();
+</script>
+</body>
+</html>

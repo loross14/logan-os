@@ -1,25 +1,32 @@
 'use client';
 
 import { useCallback } from 'react';
-import { TopBar } from '@/components/TopBar';
-import { Hero } from '@/components/Hero';
+import { BlueprintCanvas } from '@/components/BlueprintCanvas';
 import { Terminal } from '@/components/Terminal';
 import { CursorTrail } from '@/components/CursorTrail';
 import { useTerminal } from '@/hooks/useTerminal';
 import { useAccentMode } from '@/hooks/useAccentMode';
+import { useBlueprintMode } from '@/hooks/useBlueprintMode';
 import { useKonamiCode } from '@/hooks/useKonamiCode';
 
 export default function Home() {
   const { isAccentMode, toggleAccentMode, enableAccentMode } = useAccentMode();
+  const { isBlueprintMode, toggleBlueprintMode } = useBlueprintMode();
 
   const {
-    isOpen: terminalOpen,
     history,
     inputRef,
     processCommand,
+    addLineInstant,
+    toggleExpand,
+    navigateHistoryUp,
+    navigateHistoryDown,
+    getCompletion,
   } = useTerminal({
     onToggleAccentMode: toggleAccentMode,
+    onToggleBlueprintMode: toggleBlueprintMode,
     isAccentMode,
+    isBlueprintMode,
   });
 
   const handleKonamiComplete = useCallback(() => {
@@ -28,24 +35,27 @@ export default function Home() {
 
   useKonamiCode({
     onComplete: handleKonamiComplete,
-    disabled: terminalOpen,
+    disabled: false,
   });
 
-  const handleGlitch = useCallback(() => {
-    // Glitch animation is handled in HeroName component
-  }, []);
+  const handleSubmit = useCallback((cmd: string) => {
+    addLineInstant('~$ ' + cmd, 'bright');
+    processCommand(cmd);
+  }, [addLineInstant, processCommand]);
 
   return (
     <>
-      <CursorTrail />
+      <BlueprintCanvas />
       <Terminal
-        isOpen={terminalOpen}
         history={history}
         inputRef={inputRef}
-        onSubmit={processCommand}
+        onSubmit={handleSubmit}
+        onExpandToggle={toggleExpand}
+        onHistoryUp={navigateHistoryUp}
+        onHistoryDown={navigateHistoryDown}
+        onGetCompletion={getCompletion}
       />
-      <TopBar />
-      <Hero terminalOpen={terminalOpen} onGlitch={handleGlitch} />
+      <CursorTrail />
     </>
   );
 }

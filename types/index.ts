@@ -1,4 +1,4 @@
-export type OutputColor = 'green' | 'accent' | 'bright' | 'default';
+export type OutputColor = 'green' | 'accent' | 'bright' | 'dim' | 'default';
 
 export interface OutputLine {
   id: string;
@@ -12,10 +12,16 @@ export interface TrailDot {
   y: number;
 }
 
-export type CommandHandler = () => OutputLine[];
-
 export interface Command {
-  handler: CommandHandler;
+  name: string;
+  aliases: string[];
+  desc: string;
+  hidden?: boolean;
+  run: () => void;
 }
 
-export type Commands = Record<string, Command>;
+export interface TypeQueueItem {
+  text: string;
+  cls: string;
+  resolve: () => void;
+}

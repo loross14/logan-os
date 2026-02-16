@@ -16,7 +16,7 @@ export const TRAIL_SPEEDS = [0.15, 0.13, 0.11, 0.09, 0.07];
 export const TRAIL_OPACITIES = [0.3, 0.24, 0.18, 0.12, 0.06];
 export const TRAIL_SCALES = [1.0, 0.85, 0.7, 0.55, 0.4];
 
-export const CLICK_THRESHOLD = 3;
-export const CLICK_TIMEOUT = 500;
-export const GLITCH_DURATION = 300;
+export const TYPE_SPEED = 14; // ms per character
+export const FPS_INTERVAL = 1000 / 15; // ~15fps for canvas
+
 export const MOUSE_IDLE_TIMEOUT = 100;
